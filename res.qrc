@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/files">
+        <file>files2workDir/animWheel24.gif</file>
+        <file>res/hourglass.gif</file>
+        <file>res/truck-dumps.gif</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,113 @@
+Създава се БД с кодиране UTF-16:
+\sqlite3
+>pragma encoding = utf16;
+>pragma encoding;
+  -записва се във файл
+>.backup  sdispenser.db
+Ако заглавието на колоната е на кирилица трябва и таблиците да се създадат програмно.
+Запълването на данни от команден ред не става коректно т.к. кодировката на Windows е UTF8 а
+след това Qt се опитва да го чете като UTF16. Вътрешно QString в Qt5 ползва UTF16
+------------------------------------------------------------------------------------
+
+Таблица с лекарствата.  Освен името и бункера в който се съхранява има и
+поле Available което става 0 при изтриване на компонента. Така записът се запазва
+за изготвяне на справки, но не се показва повече.
+
+CREATE TABLE tblMeds
+(
+   mID   INTEGER PRIMARY KEY AUTOINCREMENT,
+   mName  VARCHAR(30) UNIQUE,
+   Tank INT,
+   Available BOOLEAN
+);
+
+INSERT INTO tblMeds VALUES (1,'none',0,0); --Този запис винаги трябва да го има в БД
+
+INSERT INTO tblMeds VALUES (NULL,'Med1',1,1);
+INSERT INTO tblMeds VALUES (NULL,'Med2',2,1);
+INSERT INTO tblMeds VALUES (NULL,'Med3',3,1);
+INSERT INTO tblMeds VALUES (NULL,'Med4',4,1);
+
+-----------------------------------------------------------------------------------
+Таблица с рецептите:
+tag е име на рецептата така както идва от програмата за дозиране на фуража.
+medX_Id е ключ към tblMeds.ID
+medX е килограми материал. Може да бъде 0 ако съставката не се ползва
+
+CREATE TABLE tblRcps
+(
+   rID   INTEGER PRIMARY KEY AUTOINCREMENT,
+   rName  VARCHAR(30) UNIQUE,
+   tag  VARCHAR(30),
+   med1_Id INT,
+   med2_Id INT,
+   med3_Id INT,
+   med4_Id INT,
+   med5_Id INT,
+   med6_Id INT,
+   med7_Id INT,
+   med8_Id INT,
+   med9_Id INT,
+   med10_Id INT,
+   med11_Id INT,
+   med1 INT,
+   med2 INT,
+   med3 INT,
+   med4 INT,
+   med5 INT,
+   med6 INT,
+   med7 INT,
+   med8 INT,
+   med9 INT,
+   med10 INT,
+   med11 INT
+);
+--                                                  с 1 са липсващи съставки
+INSERT INTO tblRcps VALUES (NULL, 'Rcp1', '11-01',   2,1,1,1,1,1,1,1,   11,21,31,41,51,61,71,81);
+INSERT INTO tblRcps VALUES (NULL, 'Rcp2', '11-02',   2,3,1,1,1,1,1,1,   12,22,32,42,52,62,72,82);
+INSERT INTO tblRcps VALUES (NULL, 'Rcp3', '11-03',   2,3,4,1,1,1,1,1,   13,23,33,43,53,63,73,83);
+INSERT INTO tblRcps VALUES (NULL, 'Rcp4', '11-04',   2,3,4,5,1,1,1,1,   14,24,34,44,54,64,74,84);
+
+
+--------------------------------------------------------------------------------
+CREATE TABLE tblLog
+(
+   id   INTEGER PRIMARY KEY AUTOINCREMENT,
+   Timestamp  DATETIME,
+   RecepieID  INT,
+
+   med1_Id INT,
+   med2_Id INT,
+   med3_Id INT,
+   med4_Id INT,
+   med5_Id INT,
+   med6_Id INT,
+   med7_Id INT,
+   med8_Id INT,
+   med9_Id INT,
+   med10_Id INT,
+   med11_Id INT,
+
+   med1 INT,
+   med2 INT,
+   med3 INT,
+   med4 INT,
+   med5 INT,
+   med6 INT,
+   med7 INT,
+   med8 INT,
+   med9 INT,
+   med10 INT,
+   med11 INT,
+
+   status INT
+);
+
+status = 0 - нормално завършена
+         1 - предварително прекратена от оператор
+         2 - предварително прекратена поради тех. проблем
+
+
+CREATE VIEW [namedLog] AS SELECT rName, tblLog.* FROM tblRcps, tblLog WHERE tblRcps.rId=tblLog.RecepieId;
+
+SELECT SUM(tblLog.med4) AS total FROM tblLog,tblMeds  WHERE tblLog.med4_Id=tblMeds.mId AND tblMeds.mName='med44';
