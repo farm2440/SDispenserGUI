@@ -65,7 +65,8 @@ RC_FILE = appIcon.rc
 
 OTHER_FILES += \
     sql.txt \
-    TODO.txt
+    TODO.txt \
+    SDispenserGUI-versions.txt
 
 RESOURCES += \
     res.qrc

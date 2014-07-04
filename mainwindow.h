@@ -106,15 +106,20 @@ private:
                     //Aко base е 1000 дозирането е с теглата както са в рецептата. Ако обаче
                     // base е различно от 1000 теглата по рецептата се коригират при запис в targetDoses.
     QString _tag;   //Етикет на рецепта
+    int advance;
     int twidoW10_H, twidoW10_L; //Съхранение на последни записани в twido стойности.
                                 //Ползват се за възстановяване след пауза.
     QTime interDoseTimer; //Таймер за определяне времето на пауза между дозирането на 2 съставки
     QTime dumpTimer,dumpHoldTimer;
+    QTime delayedStartTimer;
     int comErrCounterScale , comErrCounterTwido;
 
     QString rawHTML;
     void updateWebView();
     void changeCurrentRecepie(QString rcp);
+
+    QString noRecepieErrMsg; //Съобщение за грешка, което да се вкара в html-а когато по TCP
+                             //дойде заявка за неконфигурирана рецепта.
 
     TimeoutResumer *toResumer;
     QAction *aboutDialogAction;

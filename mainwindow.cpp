@@ -59,7 +59,14 @@ MainWindow::MainWindow(QWidget *parent, QString tag, int base) : QMainWindow(par
         s<< "DumpHoldTime=30\n";
         s<< "DumpTime=5\n";
         s<< "HoldTime=1500\n";
+        s<< "DelayedStart=10\n";
         iniFile.close();
+    }
+
+    for(int i=0 ; i!=TANKS_NUM ; i++)
+    {
+        targetDoses[i]=0;
+        finalDoses[i]=0;
     }
 
     char * fn = new char[40];
@@ -86,6 +93,8 @@ MainWindow::MainWindow(QWidget *parent, QString tag, int base) : QMainWindow(par
     settings.holdTime = iniparser_getint(dict,QString("SETTINGS:HoldTime").toLatin1().data(),1500);
     settings.comPort = QString( iniparser_getstring(dict, QString("SETTINGS:COM").toLatin1().data(), QString("").toLatin1().data()) );
     settings.port = iniparser_getint(dict, QString("SETTINGS:Port").toLatin1().data(), 9000);
+    settings.delayedStart = iniparser_getint(dict, QString("SETTINGS:DelayedStart").toLatin1().data(), 10);
+
     delete dict;
     delete fn;
 
@@ -97,7 +106,6 @@ MainWindow::MainWindow(QWidget *parent, QString tag, int base) : QMainWindow(par
     ui->listRecepies->setCurrentRow(-1);
     currentTank=0;
     currentRecepieName="НЯМА ИЗБРАНА РЕЦЕПТА!";
-    updateWebView();
 
     if(settings.dumpTime<3) settings.dumpTime=3;
     settings.dumpTime = settings.dumpTime+1;
@@ -134,15 +142,23 @@ MainWindow::MainWindow(QWidget *parent, QString tag, int base) : QMainWindow(par
     //Проверка дали програмата е стартирана от Delphi с етикет
     _base = base;
     _tag = tag;
+    noRecepieErrMsg="";
+
     if(tag!="")
     {
         if(selectRecepieByTag(_tag)) on_btnStart_clicked();
         else
         {
-            QString msg = "Дозирането на медикаменти\nне може да бъде извършено!\nНяма конфигурирана рецепта с етикет\n" + _tag;
-            QMessageBox::critical(this,"ГРЕШКА!", msg);
+//            QString msg = "Дозирането на медикаменти\nне може да бъде извършено!\nНяма конфигурирана рецепта с етикет\n" + _tag;
+//            QMessageBox::critical(this,"ГРЕШКА!", msg);
+            noRecepieErrMsg = "<div style=\"background-color:#FAFAFA; color:#FF0000; padding-left:20; padding-right:20;\" > <h3>";
+            noRecepieErrMsg+="Дозирането на медикаменти не може да бъде извършено!<br>Няма конфигурирана рецепта с етикет" + _tag;
+            noRecepieErrMsg+= " </h3></div>";
         }
     }
+
+    updateWebView();
+
 }
 
 MainWindow::~MainWindow()
@@ -191,7 +207,6 @@ void MainWindow::onTimerTick()
      */
     QPalette pal;
     QByteArray rval,wval;
-    int advance=1;
 
     switch(commState)
     {
@@ -299,22 +314,32 @@ void MainWindow::onTimerTick()
         //3. **** Работен цикъл ****
         switch(state)
         {
-        case IDLE:
         case HOLD:
+            break;
+        case IDLE:
         case FINISHED:
+                if(noRecepieErrMsg.length()!=0)
+                {
+                    updateWebView();
+                    noRecepieErrMsg="";
+                }
             break;
         case TANK_SELECT:
-            //Номерът на текущия бункер се записва в TWIDO. От това състояние започва цикъла на дозирането
-            wval.resize(2);
-            wval[0]= 0;
-            wval[1]= currentTank;
-            twidoW10_H= 0;
-            twidoW10_L= currentTank;
-            reader.prepareTwidoWrite(settings.twidoAddress,10,1,wval);
-            state = WAIT_FINE_REACHED;
-            updateWebView();
-            qDebug() << "currentTank=" << currentTank;
-            qDebug() << "state = WAIT_FINE_REACHED;";
+            if(delayedStartTimer.elapsed() > (settings.delayedStart * 1000))
+            {
+
+                //Номерът на текущия бункер се записва в TWIDO. От това състояние започва цикъла на дозирането
+                wval.resize(2);
+                wval[0]= 0;
+                wval[1]= currentTank;
+                twidoW10_H= 0;
+                twidoW10_L= currentTank;
+                reader.prepareTwidoWrite(settings.twidoAddress,10,1,wval);
+                state = WAIT_FINE_REACHED;
+                updateWebView();
+                qDebug() << "currentTank=" << currentTank;
+                qDebug() << "state = WAIT_FINE_REACHED;";
+            }
             break;
         case WAIT_FINE_REACHED:
 #ifdef TEST_MODE
@@ -379,8 +404,10 @@ void MainWindow::onTimerTick()
             reader.weight++;
 #endif
 
-            if(reader.weight-totalWeight >= targetDoses[currentTank-1] - advance)
+            if((reader.weight-totalWeight) >= (targetDoses[currentTank-1] - advance))
             {//Проверява дали е достигната дозата за текущата съставка.
+                qDebug() << "reader.weight=" << reader.weight << "  totalWeight=" << totalWeight;
+                qDebug() << "targetDoses[currentTank-1]=" << targetDoses[currentTank-1] << " advance=" << advance;
                 wval.resize(2);
                 wval[0]=0;
                 wval[1]=0;
@@ -418,6 +445,7 @@ void MainWindow::onTimerTick()
                 if(i==TANKS_NUM) break; //със state=DUMP_HOLD
 
                 currentTank = i + 1;
+//                delayedStartTimer.restart();
                 state = TANK_SELECT;
                 updateWebView();
                 qDebug() << "state = TANK_SELECT;";
@@ -575,6 +603,7 @@ void MainWindow::refreshRecepiesView()
 
 void MainWindow::on_btnStart_clicked()
 {
+    noRecepieErrMsg="";
     if(state==FINISHED) state = IDLE;
     qDebug() << "state=IDLE";
     if(currentRecepieId == -1)
@@ -639,12 +668,14 @@ void MainWindow::on_btnStart_clicked()
 
     finishStatusCode = 0;
     totalWeight = reader.weight;
+    delayedStartTimer.restart();
     state = TANK_SELECT;
     qDebug() << "state = TANK_SELECT;";
 }
 
 void MainWindow::on_btnAbort_clicked()
 {
+    noRecepieErrMsg="";
     pausedState = state;
     state = PAUSE;
     qDebug() << "state = PAUSE;";
@@ -687,6 +718,7 @@ void MainWindow::updateWebView()
 
     QString html = rawHTML;
     html.replace("~currentRecepie~", currentRecepieName);
+    html.replace("~noRecepieErrMsg~", noRecepieErrMsg);
 
     //ТЕкущо състояние
     switch(state)
@@ -1080,13 +1112,20 @@ void MainWindow::readTcpData()
     qDebug() << "XML parsed cmd=" << cmd << " tag=" << tag << " base=" <<base;
     if(cmd=="START")
     {
+        noRecepieErrMsg="";
         if((state==FINISHED) || (state==IDLE))
         {
-            if(selectRecepieByTag(_tag)) on_btnStart_clicked();
+            if(selectRecepieByTag(_tag))
+            {
+                on_btnStart_clicked();
+            }
             else
             {
-                QString msg = "Дозирането на медикаменти\nне може да бъде извършено!\nНяма конфигурирана рецепта с етикет\n" + _tag;
-                QMessageBox::critical(this,"ГРЕШКА!", msg);
+//                QString msg = "Дозирането на медикаменти\nне може да бъде извършено!\nНяма конфигурирана рецепта с етикет\n" + _tag;
+//                QMessageBox::critical(this,"ГРЕШКА!", msg);
+                noRecepieErrMsg = "<div style=\"background-color:#FAFAFA; color:#FF0000; padding-left:20; padding-right:20;\" > <h3>";
+                noRecepieErrMsg+="Дозирането на медикаменти не може да бъде извършено!<br>Няма конфигурирана рецепта с етикет" + _tag;
+                noRecepieErrMsg+= " </h3></div>";
             }
         }
         else
@@ -1101,6 +1140,7 @@ void MainWindow::readTcpData()
 
     if(cmd=="STOP")
     {
+        noRecepieErrMsg="";
         if((state!=FINISHED) && (state!=IDLE))
         {
             state = ABORT;

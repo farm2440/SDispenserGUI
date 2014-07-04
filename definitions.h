@@ -15,6 +15,6 @@
 #define ADVANCE_DEFAULT_VALUE 1
 #define COM_ERR_THRESHOLD     5
 
-#define TEST_MODE
+//#define TEST_MODE
 
 #endif // DEFINITIONS_H
